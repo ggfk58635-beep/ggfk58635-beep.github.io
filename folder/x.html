@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solo Chat</title>
+    <title>SoloTalk</title>
     <style>
         body { font-family: sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; height: 95vh; }
         #chat { flex-grow: 1; border: 1px solid #ccc; overflow-y: auto; padding: 10px; margin-bottom: 10px; background: #f9f9f9; border-radius: 8px; }
@@ -28,7 +28,7 @@
     <div id="fullscreen" onclick="this.style.display='none'"><img id="fullImg"></div>
     
     <div class="controls">
-        <div id="preview"></div> <!-- 显示当前待发送的照片状态 -->
+        <div id="preview"></div>
         <div class="row">
             <input type="text" id="nameInput" placeholder="Name" style="width: 80px;">
             <input type="text" id="in" placeholder="Type a message...">
@@ -49,12 +49,28 @@
 
     <script>
         let chat = document.getElementById("chat");
-        let avatars = { left: "", right: "" };
-        let pendingImage = null; // 用于缓存选中的图片
+        let avatars = JSON.parse(localStorage.getItem("avatars")) || { left: "", right: "" };
+        let pendingImage = null;
 
+        // 初始化加载
         chat.innerHTML = localStorage.getItem("savedChat") || "";
 
-        function save() { localStorage.setItem("savedChat", chat.innerHTML); }
+        function save() { 
+            localStorage.setItem("savedChat", chat.innerHTML); 
+            localStorage.setItem("avatars", JSON.stringify(avatars));
+        }
+
+        function upload(side, input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => { 
+                    avatars[side] = e.target.result; 
+                    save();
+                    alert("Avatar updated!");
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
 
         function previewImage(input) {
             if (input.files && input.files[0]) {
@@ -73,6 +89,9 @@
             if(!text && !pendingImage) return;
             
             let side = isRight ? 'right' : 'left';
+            let defaultAva = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23ccc\'%3E%3Cpath d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/%3E%3C/svg%3E';
+            let currentAvatar = avatars[side] || defaultAva;
+            
             let contentHtml = text ? `<div style="margin-bottom:5px">${text}</div>` : "";
             if (pendingImage) {
                 contentHtml += `<img src="${pendingImage}" onclick="showFull(this.src)">`;
@@ -82,14 +101,13 @@
             div.className = "msg " + side;
             div.innerHTML = `
                 <div class="avatar-container">
-                    <img src="${avatars[side] || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23ccc\'%3E%3Cpath d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/%3E%3C/svg%3E'}" class="avatar">
+                    <img src="${currentAvatar}" class="avatar">
                     ${name ? `<span class="name">${name}</span>` : ""}
                 </div>
                 <div class="bubble">${contentHtml}</div>`;
             
             chat.appendChild(div);
             
-            // 发送后清空
             document.getElementById("in").value = "";
             pendingImage = null;
             document.getElementById('preview').innerText = "";
@@ -97,9 +115,17 @@
             chat.scrollTop = chat.scrollHeight;
         }
 
-        function upload(side, input) { /* ... 头像逻辑保持不变 ... */ }
-        function showFull(src) { document.getElementById('fullImg').src = src; document.getElementById('fullscreen').style.display = 'flex'; }
-        function clearChat() { if(confirm("Clear history?")) { localStorage.clear(); location.reload(); } }
+        function showFull(src) {
+            document.getElementById('fullImg').src = src;
+            document.getElementById('fullscreen').style.display = 'flex';
+        }
+
+        function clearChat() {
+            if(confirm("Clear history?")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
     </script>
 </body>
 </html>
