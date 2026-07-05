@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solo Chat</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; height: 95vh; }
+        #chat { flex-grow: 1; border: 1px solid #ccc; overflow-y: auto; padding: 10px; margin-bottom: 10px; background: #f9f9f9; border-radius: 8px; }
+        .msg { display: flex; align-items: flex-start; margin: 15px 0; }
+        .msg.right { flex-direction: row-reverse; }
+        .avatar-container { display: flex; flex-direction: column; align-items: center; width: 60px; margin: 0 10px; flex-shrink: 0; }
+        .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 1px solid #ddd; background-color: #fff; display: block; }
+        .name { font-size: 12px; margin-top: 4px; color: #555; text-align: center; min-height: 14px; }
+        .bubble { padding: 10px; border-radius: 12px; background: white; border: 1px solid #ccc; max-width: 60%; word-wrap: break-word; cursor: pointer; }
+        .bubble img { max-width: 100%; border-radius: 8px; display: block; margin: 5px 0; }
+        #preview { font-size: 12px; color: #007bff; margin-bottom: 5px; }
+        #fullscreen { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:none; justify-content:center; align-items:center; z-index:999; }
+        #fullscreen img { max-width: 90%; max-height: 90%; }
+        .controls { display: flex; flex-direction: column; gap: 5px; }
+        .row { display: flex; gap: 5px; }
+        input[type="text"] { flex-grow: 1; padding: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="chat"></div>
+    <div id="fullscreen" onclick="this.style.display='none'"><img id="fullImg"></div>
+    
+    <div class="controls">
+        <div id="preview"></div> <!-- 显示当前待发送的照片状态 -->
+        <div class="row">
+            <input type="text" id="nameInput" placeholder="Name" style="width: 80px;">
+            <input type="text" id="in" placeholder="Type a message...">
+            <button onclick="send(false)">Left</button>
+            <button onclick="send(true)">Right</button>
+        </div>
+        <div class="row">
+            <button onclick="document.getElementById('fileImg').click()">Select Image</button>
+            <button ondblclick="document.getElementById('fileLeft').click()">Set Left Avatar</button>
+            <button ondblclick="document.getElementById('fileRight').click()">Set Right Avatar</button>
+            <button onclick="clearChat()" style="color:red;">Clear</button>
+        </div>
+    </div>
+
+    <input type="file" id="fileLeft" style="display:none" accept="image/*" onchange="upload('left', this)">
+    <input type="file" id="fileRight" style="display:none" accept="image/*" onchange="upload('right', this)">
+    <input type="file" id="fileImg" style="display:none" accept="image/*" onchange="previewImage(this)">
+
+    <script>
+        let chat = document.getElementById("chat");
+        let avatars = { left: "", right: "" };
+        let pendingImage = null; // 用于缓存选中的图片
+
+        chat.innerHTML = localStorage.getItem("savedChat") || "";
+
+        function save() { localStorage.setItem("savedChat", chat.innerHTML); }
+
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => { 
+                    pendingImage = e.target.result; 
+                    document.getElementById('preview').innerText = "Image selected (Ready to send)";
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function send(isRight) {
+            let text = document.getElementById("in").value;
+            let name = document.getElementById("nameInput").value.trim();
+            if(!text && !pendingImage) return;
+            
+            let side = isRight ? 'right' : 'left';
+            let contentHtml = text ? `<div style="margin-bottom:5px">${text}</div>` : "";
+            if (pendingImage) {
+                contentHtml += `<img src="${pendingImage}" onclick="showFull(this.src)">`;
+            }
+            
+            let div = document.createElement("div");
+            div.className = "msg " + side;
+            div.innerHTML = `
+                <div class="avatar-container">
+                    <img src="${avatars[side] || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23ccc\'%3E%3Cpath d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/%3E%3C/svg%3E'}" class="avatar">
+                    ${name ? `<span class="name">${name}</span>` : ""}
+                </div>
+                <div class="bubble">${contentHtml}</div>`;
+            
+            chat.appendChild(div);
+            
+            // 发送后清空
+            document.getElementById("in").value = "";
+            pendingImage = null;
+            document.getElementById('preview').innerText = "";
+            save(); 
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function upload(side, input) { /* ... 头像逻辑保持不变 ... */ }
+        function showFull(src) { document.getElementById('fullImg').src = src; document.getElementById('fullscreen').style.display = 'flex'; }
+        function clearChat() { if(confirm("Clear history?")) { localStorage.clear(); location.reload(); } }
+    </script>
+</body>
+</html>
