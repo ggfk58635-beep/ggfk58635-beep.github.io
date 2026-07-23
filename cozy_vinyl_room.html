@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>沉浸式室内 3D 黑胶唱片机</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background-color: #0b0b0e;
+            color: #ffffff;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Top Camera Selector Bar */
+        .camera-bar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 8px;
+            background: rgba(22, 22, 30, 0.75);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            padding: 6px 12px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .cam-btn {
+            background: transparent;
+            border: none;
+            color: #a0a0ab;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 7px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+        }
+
+        .cam-btn.active, .cam-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .cam-btn:active {
+            transform: translateY(0) scale(0.96);
+        }
+
+        /* Bottom Control Panel */
+        .ui-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            width: 92%;
+            max-width: 680px;
+            background: rgba(22, 22, 30, 0.82);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 22px;
+            padding: 18px 22px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .track-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .track-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f1f1f5;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+
+        .track-time {
+            font-size: 12px;
+            color: #a0a0ab;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
+        }
+
+        /* Upgraded Progress Bar with Glow */
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: height 0.2s ease;
+        }
+
+        .progress-container:hover {
+            height: 8px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #ff7e5f, #feb47b);
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(255, 126, 95, 0.8);
+            transition: width 0.1s linear;
+        }
+
+        .controls-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-group-left, .btn-group-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-upload-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px dashed rgba(255, 255, 255, 0.25);
+            padding: 7px 14px;
+            border-radius: 12px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+        }
+
+        .file-upload-btn:hover {
+            background: rgba(255, 255, 255, 0.22);
+            border-color: #feb47b;
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(254, 180, 123, 0.2);
+        }
+
+        .file-upload-btn:active {
+            transform: translateY(0) scale(0.96);
+        }
+
+        input[type="file"] { display: none; }
+
+        /* Upgraded Animated Play Button */
+        .btn-play-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-play {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff7e5f, #feb47b);
+            border: none;
+            color: #121214;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(255, 126, 95, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 2;
+        }
+
+        .btn-play:hover {
+            transform: scale(1.08);
+            box-shadow: 0 8px 25px rgba(255, 126, 95, 0.6);
+        }
+
+        .btn-play:active {
+            transform: scale(0.92);
+        }
+
+        /* Pulsing ring during playback */
+        .btn-play.playing::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid #feb47b;
+            animation: pulse-ring 1.8s infinite ease-out;
+            z-index: 1;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+
+        .volume-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .volume-slider {
+            width: 70px;
+            accent-color: #feb47b;
+            cursor: pointer;
+        }
+
+        .rpm-badge {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 11px;
+            color: #feb47b;
+            font-weight: bold;
+            border: 1px solid rgba(254, 180, 123, 0.3);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.3s ease;
+        }
+
+        .rpm-badge:hover {
+            background: rgba(254, 180, 123, 0.2);
+            transform: scale(1.05);
+        }
+
+        .icon {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        @media (max-width: 480px) {
+            .camera-bar { top: 12px; padding: 4px 8px; }
+            .cam-btn { font-size: 11px; padding: 5px 10px; }
+            .ui-panel { bottom: 12px; padding: 14px; width: 95%; }
+            .track-title { font-size: 13px; }
+            .file-upload-btn { padding: 5px 8px; font-size: 11px; }
+            .volume-slider { width: 45px; }
+        }
+    </style>
+
+    <!-- Three.js, OrbitControls & Tween.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- Top Camera Switcher -->
+    <div class="camera-bar">
+        <button class="cam-btn active" onclick="switchCamera('TURNTABLE')">唱片特写</button>
+        <button class="cam-btn" onclick="switchCamera('OVERVIEW')">房间全景</button>
+        <button class="cam-btn" onclick="switchCamera('WINDOW')">窗台视角</button>
+        <button class="cam-btn" onclick="switchCamera('BED')">大床与房门</button>
+    </div>
+
+    <!-- UI Panel -->
+    <div class="ui-panel">
+        <div class="track-info">
+            <span class="track-title" id="track-title">导入音乐文件（MP3 / WAV）</span>
+            <span class="track-time" id="track-time">00:00 / 00:00</span>
+        </div>
+
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <div class="controls-row">
+            <div class="btn-group-left">
+                <label class="file-upload-btn" for="file-input">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                    导入音乐
+                </label>
+                <input type="file" id="file-input" accept="audio/*">
+
+                <label class="file-upload-btn" for="img-input">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                    换封面
+                </label>
+                <input type="file" id="img-input" accept="image/*">
+            </div>
+
+            <div class="btn-play-wrapper">
+                <button class="btn-play" id="btn-play" title="播放 / 暂停">
+                    <svg class="icon" id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+            </div>
+
+            <div class="btn-group-right">
+                <div class="volume-container">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.01" value="0.8">
+                </div>
+                <div class="rpm-badge" id="rpm-btn">33 RPM</div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audio-player"></audio>
+
+    <script>
+        // --- 1. PROCEDURAL TEXTURE GENERATORS (UPGRADED MATERIALS) ---
+        function createWoodTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#4a2e1b';
+            ctx.fillRect(0, 0, 512, 512);
+            for (let i = 0; i < 800; i++) {
+                ctx.fillStyle = `rgba(20, 10, 5, ${Math.random() * 0.15})`;
+                ctx.fillRect(0, Math.random() * 512, 512, 1 + Math.random() * 3);
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        function createFabricTexture(baseColorHex) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = baseColorHex;
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            for (let x = 0; x < 256; x += 4) ctx.fillRect(x, 0, 2, 256);
+            ctx.fillStyle = 'rgba(0,0,0,0.06)';
+            for (let y = 0; y < 256; y += 4) ctx.fillRect(0, y, 256, 2);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        const woodTex = createWoodTexture();
+        woodTex.repeat.set(3, 3);
+
+        const floorTex = createWoodTexture();
+        floorTex.repeat.set(6, 6);
+
+        const fabricDuvetTex = createFabricTexture('#4a6572');
+        fabricDuvetTex.repeat.set(4, 4);
+
+        const fabricPillowTex = createFabricTexture('#e8e8ed');
+
+        // --- 2. THREE.JS SCENE SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 0.5;
+        controls.maxDistance = 5.5;
+        controls.maxPolarAngle = Math.PI / 2 - 0.01;
+
+        // Camera Views Preset
+        const CAMERA_VIEWS = {
+            TURNTABLE: {
+                pos: new THREE.Vector3(-2.6, 3.2, -2.2),
+                target: new THREE.Vector3(-3.7, 2.4, -3.7)
+            },
+            OVERVIEW: {
+                pos: new THREE.Vector3(1.2, 3.8, 2.2),
+                target: new THREE.Vector3(-0.5, 2.0, -1.0)
+            },
+            WINDOW: {
+                pos: new THREE.Vector3(-1.0, 3.0, -1.5),
+                target: new THREE.Vector3(-1.5, 3.0, -4.8)
+            },
+            BED: {
+                pos: new THREE.Vector3(-1.2, 3.2, 2.8),
+                target: new THREE.Vector3(2.8, 1.8, -1.0)
+            }
+        };
+
+        camera.position.copy(CAMERA_VIEWS.TURNTABLE.pos);
+        controls.target.copy(CAMERA_VIEWS.TURNTABLE.target);
+
+        function switchCamera(viewKey) {
+            const view = CAMERA_VIEWS[viewKey];
+            if (!view) return;
+
+            document.querySelectorAll('.cam-btn').forEach(btn => btn.classList.remove('active'));
+            if (event && event.target) event.target.classList.add('active');
+
+            new TWEEN.Tween(camera.position).to(view.pos, 1200).easing(TWEEN.Easing.Cubic.InOut).start();
+            new TWEEN.Tween(controls.target).to(view.target, 1200).easing(TWEEN.Easing.Cubic.InOut).start();
+        }
+
+        // --- 3. LIGHTING (WARM COZY ATMOSPHERE) ---
+        const ambientLight = new THREE.AmbientLight(0xffeedd, 0.9);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffeedd, 2.2);
+        sunLight.position.set(-2.5, 5.0, -10.0);
+        sunLight.target.position.set(-2.5, 2.0, -2.0);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.bias = -0.0003;
+        scene.add(sunLight);
+        scene.add(sunLight.target);
+
+        // Warm Accent Lamp Light
+        const lampLight = new THREE.PointLight(0xffaa55, 1.5, 8);
+        lampLight.position.set(-2.2, 3.0, -3.5);
+        scene.add(lampLight);
+
+        // --- 4. ROOM ENCLOSURE & MATERIALS ---
+        const roomGroup = new THREE.Group();
+        scene.add(roomGroup);
+
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x6e6660, roughness: 0.85 });
+        const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.35, metalness: 0.1 });
+        const woodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.4, metalness: 0.1 });
+        const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x504b46, roughness: 0.9 });
+
+        // Floor & Ceiling
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        roomGroup.add(floor);
+
+        const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), ceilingMat);
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.set(0, 5.5, 0);
+        roomGroup.add(ceiling);
+
+        // Walls
+        const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(10, 5.5), wallMat);
+        leftWall.position.set(-5, 2.75, 0);
+        leftWall.rotation.y = Math.PI / 2;
+        leftWall.receiveShadow = true;
+        roomGroup.add(leftWall);
+
+        const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(10, 5.5), wallMat);
+        rightWall.position.set(5, 2.75, 0);
+        rightWall.rotation.y = -Math.PI / 2;
+        rightWall.receiveShadow = true;
+        roomGroup.add(rightWall);
+
+        const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(10, 5.5), wallMat);
+        frontWall.position.set(0, 2.75, 5);
+        frontWall.rotation.y = Math.PI;
+        frontWall.receiveShadow = true;
+        roomGroup.add(frontWall);
+
+        // Back Wall with Window
+        const bwLeft = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 5.5), wallMat);
+        bwLeft.position.set(-4.0, 2.75, -5);
+
+        const bwRight = new THREE.Mesh(new THREE.PlaneGeometry(5.0, 5.5), wallMat);
+        bwRight.position.set(2.5, 2.75, -5);
+
+        const bwBottom = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 2.0), wallMat);
+        bwBottom.position.set(-1.5, 1.0, -5);
+
+        const bwTop = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.3), wallMat);
+        bwTop.position.set(-1.5, 4.85, -5);
+
+        roomGroup.add(bwLeft, bwRight, bwBottom, bwTop);
+
+        // --- 5. DETAILED ROOM DOOR (ON RIGHT WALL) ---
+        const doorGroup = new THREE.Group();
+        doorGroup.position.set(4.92, 0, 1.5);
+
+        // Door Frame
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0xdddddf, roughness: 0.5 });
+        const frameTop = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 1.6), frameMat);
+        frameTop.position.set(0, 3.25, 0);
+        const frameL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 3.2, 0.1), frameMat);
+        frameL.position.set(0, 1.6, -0.75);
+        const frameR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 3.2, 0.1), frameMat);
+        frameR.position.set(0, 1.6, 0.75);
+        doorGroup.add(frameTop, frameL, frameR);
+
+        // Door Panel
+        const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(0.06, 3.15, 1.42), woodMat);
+        doorPanel.position.set(-0.02, 1.58, 0);
+        doorPanel.castShadow = true;
+        doorPanel.receiveShadow = true;
+
+        // Door Handle (Brass)
+        const brassMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.9, roughness: 0.2 });
+        const handleBase = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 16), brassMat);
+        handleBase.rotation.z = Math.PI / 2;
+        handleBase.position.set(-0.06, 1.5, -0.5);
+
+        const handleLever = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.18), brassMat);
+        handleLever.position.set(-0.08, 1.5, -0.55);
+
+        doorGroup.add(doorPanel, handleBase, handleLever);
+        roomGroup.add(doorGroup);
+
+        // --- 6. WINDOW & DESK FURNITURE ---
+        const windowGroup = new THREE.Group();
+        windowGroup.position.set(-1.5, 3.1, -4.95);
+
+        const wFrameMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f5, roughness: 0.3 });
+        const fTop = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 0.2), wFrameMat);
+        fTop.position.set(0, 1.1, 0);
+        const fBot = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 0.2), wFrameMat);
+        fBot.position.set(0, -1.1, 0);
+        const fLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.2, 0.2), wFrameMat);
+        fLeft.position.set(-1.5, 0, 0);
+        const fRight = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.2, 0.2), wFrameMat);
+        fRight.position.set(1.5, 0, 0);
+        windowGroup.add(fTop, fBot, fLeft, fRight);
+
+        const sill = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.1, 0.4), woodMat);
+        sill.position.set(0, -1.15, 0.2);
+        sill.receiveShadow = true;
+        sill.castShadow = true;
+        windowGroup.add(sill);
+
+        const skyPlane = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), new THREE.MeshBasicMaterial({ color: 0x87ceeb }));
+        skyPlane.position.set(0, 0, -0.2);
+        windowGroup.add(skyPlane);
+        roomGroup.add(windowGroup);
+
+        // Desk
+        const deskGroup = new THREE.Group();
+        deskGroup.position.set(-3.5, 0, -3.5);
+
+        const deskTop = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.18, 2.6), woodMat);
+        deskTop.position.set(0, 2.3, 0);
+        deskTop.castShadow = true;
+        deskTop.receiveShadow = true;
+        deskGroup.add(deskTop);
+
+        for (let x of [-1.2, 1.2]) {
+            for (let z of [-1.1, 1.1]) {
+                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 2.2, 16), woodMat);
+                leg.position.set(x, 1.1, z);
+                leg.castShadow = true;
+                deskGroup.add(leg);
+            }
+        }
+        roomGroup.add(deskGroup);
+
+        // --- 7. REALISTIC BED WITH LEGS & FEET ---
+        const bedGroup = new THREE.Group();
+        bedGroup.position.set(2.6, 0, -2.6);
+
+        // Solid Wooden Bed Base Frame
+        const bedFrame = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.35, 3.6), woodMat);
+        bedFrame.position.set(-0.2, 0.35, 0);
+        bedFrame.castShadow = true;
+        bedFrame.receiveShadow = true;
+        bedGroup.add(bedFrame);
+
+        // 4 Bed Legs (Fix Floating Bug!)
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x2d1b0f, roughness: 0.5 });
+        const legGeo = new THREE.CylinderGeometry(0.08, 0.06, 0.35, 16);
+        const legOffsets = [
+            { x: -1.7, z: -1.6 },
+            { x: 1.3, z: -1.6 },
+            { x: -1.7, z: 1.6 },
+            { x: 1.3, z: 1.6 }
+        ];
+        legOffsets.forEach(pt => {
+            const leg = new THREE.Mesh(legGeo, legMat);
+            leg.position.set(pt.x, 0.175, pt.z);
+            leg.castShadow = true;
+            bedGroup.add(leg);
+        });
+
+        // Bed Headboard
+        const headboard = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.8, 3.8), woodMat);
+        headboard.position.set(1.4, 1.4, 0);
+        headboard.castShadow = true;
+        bedGroup.add(headboard);
+
+        // Mattress
+        const mattress = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.5, 3.4), new THREE.MeshStandardMaterial({ map: fabricPillowTex, roughness: 0.8 }));
+        mattress.position.set(-0.2, 0.75, 0);
+        mattress.receiveShadow = true;
+        bedGroup.add(mattress);
+
+        // Duvet / Blanket
+        const duvet = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.52, 3.45), new THREE.MeshStandardMaterial({ map: fabricDuvetTex, roughness: 0.7 }));
+        duvet.position.set(-0.65, 0.78, 0);
+        duvet.castShadow = true;
+        duvet.receiveShadow = true;
+        bedGroup.add(duvet);
+
+        // Pillows
+        const pillowGeo = new THREE.BoxGeometry(0.6, 0.22, 1.2);
+        const pillowMat = new THREE.MeshStandardMaterial({ map: fabricPillowTex, roughness: 0.9 });
+        
+        const pillow1 = new THREE.Mesh(pillowGeo, pillowMat);
+        pillow1.position.set(0.9, 1.08, -0.85);
+        pillow1.rotation.z = -0.15;
+        pillow1.castShadow = true;
+
+        const pillow2 = new THREE.Mesh(pillowGeo, pillowMat);
+        pillow2.position.set(0.9, 1.08, 0.85);
+        pillow2.rotation.z = -0.15;
+        pillow2.castShadow = true;
+
+        bedGroup.add(pillow1, pillow2);
+        roomGroup.add(bedGroup);
+
+        // Sleeve Cover
+        const sleeveCanvas = document.createElement('canvas');
+        sleeveCanvas.width = 512; sleeveCanvas.height = 512;
+        const sleeveCtx = sleeveCanvas.getContext('2d');
+        const sleeveTexture = new THREE.CanvasTexture(sleeveCanvas);
+
+        function drawSleeveCover(img = null) {
+            sleeveCtx.fillStyle = '#221a15';
+            sleeveCtx.fillRect(0, 0, 512, 512);
+            if (img) {
+                sleeveCtx.drawImage(img, 0, 0, 512, 512);
+            } else {
+                sleeveCtx.fillStyle = '#ff6b4a';
+                sleeveCtx.fillRect(30, 30, 452, 452);
+                sleeveCtx.fillStyle = '#ffffff';
+                sleeveCtx.font = 'bold 36px sans-serif';
+                sleeveCtx.textAlign = 'center';
+                sleeveCtx.fillText('LO-FI VINYL', 256, 260);
+            }
+            sleeveTexture.needsUpdate = true;
+        }
+        drawSleeveCover();
+
+        const sleeveMesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.025, 1.4), new THREE.MeshStandardMaterial({ map: sleeveTexture }));
+        sleeveMesh.position.set(-2.5, 2.4, -2.6);
+        sleeveMesh.rotation.y = -0.25;
+        sleeveMesh.castShadow = true;
+        roomGroup.add(sleeveMesh);
+
+        // --- 8. TURNTABLE & TONEARM ASSEMBLY ---
+        const vinylCanvas = document.createElement('canvas');
+        vinylCanvas.width = 1024; vinylCanvas.height = 1024;
+        const vinylCtx = vinylCanvas.getContext('2d');
+        const vinylTexture = new THREE.CanvasTexture(vinylCanvas);
+
+        function drawVinylTexture(coverImage = null) {
+            vinylCtx.clearRect(0, 0, 1024, 1024);
+            vinylCtx.fillStyle = '#111113';
+            vinylCtx.fillRect(0, 0, 1024, 1024);
+
+            for (let r = 170; r < 480; r += 2.5) {
+                vinylCtx.strokeStyle = `rgba(255, 255, 255, ${0.12 + Math.random() * 0.25})`;
+                vinylCtx.beginPath();
+                vinylCtx.arc(512, 512, r, 0, Math.PI * 2);
+                vinylCtx.stroke();
+            }
+
+            const labelRadius = 150;
+            vinylCtx.save();
+            vinylCtx.beginPath();
+            vinylCtx.arc(512, 512, labelRadius, 0, Math.PI * 2);
+            vinylCtx.clip();
+
+            if (coverImage) {
+                vinylCtx.drawImage(coverImage, 512 - labelRadius, 512 - labelRadius, labelRadius * 2, labelRadius * 2);
+            } else {
+                vinylCtx.fillStyle = '#ff6b4a';
+                vinylCtx.fillRect(0, 0, 1024, 1024);
+                vinylCtx.fillStyle = '#ffffff';
+                vinylCtx.font = 'bold 32px sans-serif';
+                vinylCtx.textAlign = 'center';
+                vinylCtx.fillText('HI-FI STEREO', 512, 500);
+            }
+            vinylCtx.restore();
+
+            vinylCtx.beginPath();
+            vinylCtx.arc(512, 512, 20, 0, Math.PI * 2);
+            vinylCtx.fillStyle = '#0a0a0c';
+            vinylCtx.fill();
+
+            vinylTexture.needsUpdate = true;
+        }
+        drawVinylTexture();
+
+        const turntableGroup = new THREE.Group();
+        turntableGroup.position.set(-3.7, 2.39, -3.7);
+        scene.add(turntableGroup);
+
+        const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.18, 1.6), new THREE.MeshStandardMaterial({ color: 0x161618, roughness: 0.25, metalness: 0.85 }));
+        baseMesh.position.y = 0.09;
+        baseMesh.castShadow = true;
+        turntableGroup.add(baseMesh);
+
+        const platter = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.68, 0.04, 64), new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.95, roughness: 0.1 }));
+        platter.position.set(-0.35, 0.20, 0.0);
+        turntableGroup.add(platter);
+
+        const recordGroup = new THREE.Group();
+        recordGroup.position.set(-0.35, 0.225, 0.0);
+        const recordMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.012, 64), new THREE.MeshStandardMaterial({ map: vinylTexture, roughness: 0.3, metalness: 0.4 }));
+        recordMesh.castShadow = true;
+        recordGroup.add(recordMesh);
+        turntableGroup.add(recordGroup);
+
+        // Tonearm
+        const chromeMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, metalness: 0.95, roughness: 0.1 });
+
+        const armRestGroup = new THREE.Group();
+        armRestGroup.position.set(0.55, 0.18, 0.35);
+        const restPost = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.12, 16), chromeMat);
+        restPost.position.y = 0.06;
+        const restClip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.04), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+        restClip.position.y = 0.12;
+        armRestGroup.add(restPost, restClip);
+        turntableGroup.add(armRestGroup);
+
+        const tonearmBaseGroup = new THREE.Group();
+        tonearmBaseGroup.position.set(0.55, 0.18, -0.45);
+
+        const armPivotBase = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.08, 32), chromeMat);
+        armPivotBase.position.y = 0.04;
+        tonearmBaseGroup.add(armPivotBase);
+
+        const tonearmJointGroup = new THREE.Group();
+        tonearmJointGroup.position.set(0, 0.10, 0);
+        tonearmBaseGroup.add(tonearmJointGroup);
+
+        const armRod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.82, 16), chromeMat);
+        armRod.rotation.x = Math.PI / 2;
+        armRod.position.set(0, 0, 0.41);
+        armRod.castShadow = true;
+        tonearmJointGroup.add(armRod);
+
+        const headshellGroup = new THREE.Group();
+        headshellGroup.position.set(0, -0.01, 0.82);
+        const headshell = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.12), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+        headshell.rotation.y = -0.25;
+        headshellGroup.add(headshell);
+
+        const stylus = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.03, 8), chromeMat);
+        stylus.position.set(0, -0.02, 0);
+        headshellGroup.add(stylus);
+
+        tonearmJointGroup.add(headshellGroup);
+        turntableGroup.add(tonearmBaseGroup);
+
+        // --- 9. AUDIO LOGIC & RENDER LOOP ---
+        const audio = document.getElementById('audio-player');
+        const fileInput = document.getElementById('file-input');
+        const imgInput = document.getElementById('img-input');
+        const playBtn = document.getElementById('btn-play');
+        const playIcon = document.getElementById('play-icon');
+        const trackTitle = document.getElementById('track-title');
+        const trackTime = document.getElementById('track-time');
+        const progressBar = document.getElementById('progress-bar');
+        const progressContainer = document.getElementById('progress-container');
+        const volumeSlider = document.getElementById('volume-slider');
+        const rpmBtn = document.getElementById('rpm-btn');
+
+        let isPlaying = false;
+        let isTransitioning = false;
+        let rpmSpeed = 33.33;
+
+        const REST_ARM_Y = 0.0;
+        const START_ARM_Y = -0.65;
+        const END_ARM_Y = -1.05;
+        let tonearmTargetY = REST_ARM_Y;
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                audio.src = URL.createObjectURL(file);
+                trackTitle.textContent = file.name.replace(/\.[^/.]+$/, "");
+                triggerPlayPauseToggle(true);
+            }
+        });
+
+        imgInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        drawVinylTexture(img);
+                        drawSleeveCover(img);
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function triggerPlayPauseToggle(forcePlay = false) {
+            if (isTransitioning && !forcePlay) return;
+
+            if (!audio.src) {
+                fileInput.click();
+                return;
+            }
+
+            isTransitioning = true;
+
+            if (isPlaying && !forcePlay) {
+                audio.pause();
+                isPlaying = false;
+                playBtn.classList.remove('playing');
+                playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+            } else {
+                audio.play().then(() => {
+                    isPlaying = true;
+                    playBtn.classList.add('playing');
+                    playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+                }).catch(err => console.log(err));
+            }
+
+            setTimeout(() => { isTransitioning = false; }, 800);
+        }
+
+        playBtn.addEventListener('click', () => triggerPlayPauseToggle());
+        volumeSlider.addEventListener('input', (e) => audio.volume = e.target.value);
+
+        rpmBtn.addEventListener('click', () => {
+            rpmSpeed = (rpmSpeed === 33.33) ? 45 : 33.33;
+            rpmBtn.textContent = (rpmSpeed === 45) ? '45 RPM' : '33 RPM';
+        });
+
+        progressContainer.addEventListener('click', (e) => {
+            if (!audio.duration) return;
+            const rect = progressContainer.getBoundingClientRect();
+            audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+        });
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "00:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        let clock = new THREE.Clock();
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+            TWEEN.update(time);
+
+            const delta = clock.getDelta();
+
+            // Strict Indoor Camera Lock Boundary
+            camera.position.x = THREE.MathUtils.clamp(camera.position.x, -4.2, 4.2);
+            camera.position.y = THREE.MathUtils.clamp(camera.position.y, 0.6, 4.8);
+            camera.position.z = THREE.MathUtils.clamp(camera.position.z, -4.2, 4.2);
+
+            if (isPlaying && !audio.paused) {
+                const rotationSpeed = (rpmSpeed / 60) * Math.PI * 2 * delta;
+                recordGroup.rotation.y += rotationSpeed;
+                platter.rotation.y += rotationSpeed;
+
+                const progress = (audio.currentTime / audio.duration) || 0;
+                progressBar.style.width = `${progress * 100}%`;
+                trackTime.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+
+                tonearmTargetY = START_ARM_Y + (END_ARM_Y - START_ARM_Y) * progress;
+            } else {
+                tonearmTargetY = REST_ARM_Y;
+            }
+
+            tonearmJointGroup.rotation.y += (tonearmTargetY - tonearmJointGroup.rotation.y) * 0.08;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
